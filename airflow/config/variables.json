@@ -1,0 +1,11 @@
+{
+  "dem_csv_url": "https://raw.githubusercontent.com/alexisbarnique/amq2-service-ml/refs/heads/main/modelo_base/dem_20110401_20251022.csv",
+  "temp_csv_url": "https://raw.githubusercontent.com/alexisbarnique/amq2-service-ml/refs/heads/main/modelo_base/temperaturas.csv",
+  "dem_path": "s3://data/raw/demandas.csv",
+  "temp_path": "s3://data/raw/temperaturas.csv",
+  "clean_data_path": "s3://data/clean/clean_data.csv",
+  "X_train_coded_path": "s3://data/clean/X_train_coded.csv",
+  "X_test_coded_path": "s3://data/clean/X_test_coded.csv",
+  "y_train_path": "s3://data/clean/y_train.csv",
+  "y_test_path":"s3://data/clean/y_test.csv"
+}

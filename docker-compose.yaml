@@ -408,7 +408,11 @@ services:
         echo
         echo "Files in shared volumes:"
         echo
-        ls -la /opt/airflow/{logs,dags,plugins,config}
+        ls -la /opt/airflow/{logs,dags,plugins,config}        
+        echo "Archivos en /opt/airflow/config:"
+        ls -la /opt/airflow/config
+        echo "Importando variables de Airflow..."
+        airflow variables import /opt/airflow/config/variables.json
     # yamllint enable rule:line-length
     environment:
       <<: *airflow-common-env

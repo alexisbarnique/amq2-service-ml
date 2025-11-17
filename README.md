@@ -15,6 +15,11 @@ Se agrega esta sección provisoria para hacer comentarios sobre cambios realizad
         -   Se reemplazó el caracter `:` en las rutas de los logs, para compatibilizar con NTFS.
         -   Se agregaron volumes para temporales de uv, por problemas de permisos.
         -   Se agregó AIRFLOW__API__SECRET_KEY.
+-   2025-11-17 parte 2
+    -   Nueva tarea para split y encoding.
+    -   Implementación de variables a través del uso de "Variables" de Airflow. Se creo un archivo /airflow/config/variables.json 
+    para el manejo de variables (se evita harcodear)
+    -   Documentación de tareas con docstrings.
 
 
 # Ejemplo de ambiente productivo

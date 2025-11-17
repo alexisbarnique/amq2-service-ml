@@ -10,7 +10,6 @@ Realiza el preprocesamiento combinando ambos datasets y codificando variables, p
 el dataset de entrenamiento y el de test en el bucket S3.
 """
 
-
 default_args = {
     'owner': "Alexis, Bárbara, Brian, Daniel y Gabriela",
     'depends_on_past': False,
@@ -19,7 +18,6 @@ default_args = {
     #'retry_delay': datetime.timedelta(minutes=5),
     'dagrun_timeout': datetime.timedelta(minutes=15)
 }
-
 
 @dag(
     dag_id="process_etl_electrical_demand",
@@ -31,31 +29,49 @@ default_args = {
 )
 def process_etl_electrical_demand():
 
+    def get_variable(key):
+        """
+        Obtiene el valor de una variable de Airflow. Se define de forma separada para ejecutarla en
+        el entorno general del contenedor, ya que en un entorno virtual independiente, 
+        como se ejecutan las otras tareas, no tiene acceso a las variables.
+
+        Args:
+            key (str): Clave (Key) de la variable a obtener. 
+
+        Returns:
+            str: Valor de la variable solicitada.
+        """
+        from airflow.models import Variable
+        
+        value = Variable.get(key)
+        if not value:
+            raise ValueError(f"La variable '{key}' está vacía o no existe.")
+        return value
+
+
     @task.virtualenv(
         task_id="get_raw_data",
         requirements=["awswrangler==3.6.0"],
         system_site_packages=True
     )
-    def get_raw_data():
+    def get_raw_data(dem_csv_url, temp_csv_url, dem_path, temp_path):
         """
-        Descargar CSV con datos de demanda y temperatura desde GitHub y subir a S3.
+        Descarga los archivos CSV de demanda eléctrica y temperatura desde Github y los sube al bucket S3.
+
+        Args:
+            dem_csv_url (str): URL de Github con los datos crudos de demandas en formato csv.
+            temp_csv_url (str): URL de Github con los datos crudos de temperaturas en formato csv.
+            dem_path (str): Ruta en el bucket S3 donde se guardará el archivo de demandas.
+            temp_path (str): Ruta en el bucket S3 donde se guardará el archivo de temperaturas.
+
+        Returns:
+            dict: Diccionario con las rutas en S3 de los archivos subidos.
+                - dem_path: Ruta del archivo de demandas en S3.
+                - temp_path: Ruta del archivo de temperaturas en S3.
         """
         import awswrangler as wr
         import pandas as pd
         import logging
-        from airflow.models import Variable
-
-        # Variables fijadas por código
-        dem_csv_url  = "https://raw.githubusercontent.com/alexisbarnique/amq2-service-ml/refs/heads/main/modelo_base/dem_20110401_20251022.csv"
-        temp_csv_url = "https://raw.githubusercontent.com/alexisbarnique/amq2-service-ml/refs/heads/main/modelo_base/temperaturas.csv"
-        dem_path  = "s3://data/raw/demandas.csv"
-        temp_path = "s3://data/raw/temperaturas.csv"
-
-        # Variables de Airflow
-        # dem_csv_url = Variable.get("dem_csv_url")
-        # temp_csv_url = Variable.get("temp_csv_url")
-        # dem_path = Variable.get("dem_path")
-        # temp_path = Variable.get("temp_path")
 
         logging.info("Descargando archivos CSV...")
         try:
@@ -80,24 +96,36 @@ def process_etl_electrical_demand():
         requirements=["awswrangler==3.6.0"],
         system_site_packages=True
     )
-    def data_wrangling():
+    def data_wrangling(get_raw_data_res, clean_data_path):    
         """
-        Combina y aplica transformaciones necesarias a los datos de temperatura y demanda.
+        Realiza el preprocesamiento de los datos de demanda y temperatura.
+
+        Proceso:
+        - Lee los archivos de demanda y temperatura desde S3, usando las rutas provistas por la tarea anterior.
+        - Filtra y transforma los datos relevantes.
+        - Combina ambos datasets y genera el dataset limpio.
+        - Guarda el dataset limpio en S3.
+
+        Args:
+            get_raw_data_res (dict): Diccionario retornado por la tarea get_raw_data, con las rutas:
+                - dem_path (str): Ruta en S3 del archivo de demandas.
+                - temp_path (str): Ruta en S3 del archivo de temperaturas.
+            clean_data_path (str): Ruta en S3 donde se guardará el archivo de datos limpios.
+
+        Returns:
+            dict: Diccionario con información para la siguiente etapa:
+                - clean_data_path (str): Ruta del archivo limpio en S3.
+                - cat_cols (list): Lista con nombres de las columnas categóricas.
+                - num_cols (list): Lista con nombres de las columnas numéricas.
+                - target (list): Lista con el nombre de la columna objetivo.
         """
         import awswrangler as wr
         import pandas as pd
         import logging
-        from airflow.models import Variable
 
-        #-- 0. Rutas útiles
-        # Variables fijadas por código
-        dem_path  = "s3://data/raw/demandas.csv"
-        temp_path = "s3://data/raw/temperaturas.csv"
-        clean_data_path = "s3://data/raw/clean_data.csv"
-
-        # Variables de Airflow
-        # dem_path = Variable.get("dem_path")
-        # temp_path = Variable.get("temp_path")
+        #-- 0. Datos de tarea anterior
+        dem_path = get_raw_data_res["dem_path"]
+        temp_path = get_raw_data_res["temp_path"]
 
         #-- 1. Lectura de demanda histórica
         logging.info("Cargando datos de demanda...")
@@ -117,7 +145,7 @@ def process_etl_electrical_demand():
             temp_df = temp_df.copy().loc[temp_df['fecha']>='2021-01-01'] #Se hace una copia para evitar warnings
             temp_df['fecha'] = pd.to_datetime(temp_df['fecha'])
         except Exception as e:
-            raise RuntimeError(f"Error al leer el archivo de temperatura de S3: {e}")
+            raise RuntimeError(f"Error al leer el archivo de temperatura de S3 en {temp_path}. Detalles: {e}")
 
         #-- 3. Conformación de todo el dataset
         #-- 3.1 Join entre temperatura y demanda
@@ -140,6 +168,9 @@ def process_etl_electrical_demand():
 
             #-- 3.5 Se agrega la temperatura al cuadrado
             clean_data['tmed2'] = clean_data['tmed'] ** 2
+
+            #-- 3.6 Redefinición de columnas numéricas: se elimina year y se agrega tmed2
+            num_cols = ['tmed', 'tmed2']
         except Exception as e:
             raise RuntimeError(f"Error al procesar datos de demanda y temperatura: {e}")
 
@@ -151,10 +182,154 @@ def process_etl_electrical_demand():
             raise RuntimeError(f"Error al subir archivo a S3: {e}")
 
         logging.info("Carga completada.")
-        return {"clean_data_path": clean_data_path}
+        return {"clean_data_path": clean_data_path, "cat_cols": cat_cols, "num_cols": num_cols, "target":target}
 
 
-    get_raw_data() >> data_wrangling()
+    @task.virtualenv(
+        task_id="split_encoding",
+        requirements=["awswrangler==3.6.0", "scikit-learn==1.7.2"],
+        system_site_packages=True
+    )
+    def split_encoding(data_wrangling_res, X_train_coded_path, X_test_coded_path, y_train_path, y_test_path):        
+        """
+        Realiza el split en conjuntos de entrenamiento y test, y aplica codificaciones a las variables categóricas y temporales.
 
+        Proceso:
+        - Lee el dataset limpio desde S3, usando la ruta provista por la tarea anterior.
+        - Separa los datos en X_train, X_test, y_train, y_test usando `train_test_split`.
+        - Aplica codificación cíclica a la columna 'mes'.
+        - Aplica target encoding a la combinación de 'age_nemo' y 'tipo_dia'.
+        - Elimina las columnas originales categóricas tras la codificación.
+        - Guarda los datasets procesados en S3.
+
+        Args:
+            data_wrangling_res (dict): Diccionario retornado por la tarea data_wrangling, con:
+                - clean_data_path (str): Ruta en S3 del archivo limpio.
+                - cat_cols (list): Lista con nombres de las columnas categóricas.
+                - num_cols (list): Lista con nombres de las columnas numéricas.
+                - target (list): Lista con el nombre de la columna objetivo.
+            X_train_coded_path (str): Ruta en S3 donde se guardará el X_train codificado.
+            X_test_coded_path (str): Ruta en S3 donde se guardará el X_test codificado.
+            y_train_path (str): Ruta en S3 donde se guardará y_train.
+            y_test_path (str): Ruta en S3 donde se guardará y_test.
+
+        Returns:
+            dict: Diccionario con las rutas en S3 de los archivos generados.
+                - X_train_coded_path (str): Ruta del X_train codificado en S3.
+                - X_test_coded_path (str): Ruta del X_test codificado en S3.
+                - y_train_path (str): Ruta de y_train en S3.
+                - y_test_path (str): Ruta de y_test en S3.
+        """
+        import awswrangler as wr
+        import numpy as np
+        import pandas as pd
+        import logging
+        from sklearn.model_selection import train_test_split
+
+        #-- 0. Datos de tarea anterior
+        clean_data_path = data_wrangling_res["clean_data_path"]
+        cat_cols = data_wrangling_res["cat_cols"]
+        num_cols = data_wrangling_res["num_cols"]
+        target = data_wrangling_res["target"]
+
+        #-- 1. Lectura de datos limpios
+        logging.info("Cargando datos...")
+        try:
+            clean_df = wr.s3.read_csv(clean_data_path)
+        except Exception as e:
+            raise RuntimeError(f"Error al leer el archivo de datos limpios de S3 en {clean_data_path}. Detalles: {e}")
+
+        #-- 2. Split
+        logging.info("Realizando split...")
+        try:
+            X_train, X_test, y_train, y_test = train_test_split(
+                clean_df[cat_cols + num_cols],
+                clean_df[target],
+                test_size=0.3,
+                random_state=42,
+                stratify=clean_df[cat_cols]
+            )
+        except Exception as e:
+            raise RuntimeError(f"Error al realizar el split de datos. Detalles: {e}")
+
+        #-- 3. Codificación del train
+        #-- 3.1 Mes - codificación cíclica
+        logging.info("Codificando datos de entrenamiento...")
+        try:
+            X_train['mes_sin'] = np.sin(2 * np.pi * X_train['mes'] / 12)
+            X_train['mes_cos'] = np.cos(2 * np.pi * X_train['mes'] / 12)
+
+            #-- 3.2 age_nemo y tipo_dia - target encoding
+            #-- 3.2.1 Combinación de age_nemo y tipo_dia para obtener una única columna categórica
+            X_train['dist_tipodia'] = X_train['age_nemo'].astype(str) + '_' + X_train['tipo_dia'].astype(str)
+
+            #-- 3.2.2 Target Encoding sobre la nueva columna combinada
+            encoding = pd.concat([X_train, y_train], axis=1).groupby('dist_tipodia')['dem_dia'].mean()
+            X_train['dist_tipodia_te'] = X_train['dist_tipodia'].map(encoding)
+
+            #-- 3.2.3 Eliminar columnas originales
+            X_train_coded = X_train.drop(columns=['age_nemo', 'tipo_dia', 'dist_tipodia'])
+        except Exception as e:
+            raise RuntimeError(f"Error al codificar datos de entrenamiento: {e}")
+
+        #-- 4. Codificación del test
+        #-- 4.1 Mes - codificación cíclica
+        logging.info("Codificando datos de test...")
+        try:
+            X_test['mes_sin'] = np.sin(2 * np.pi * X_test['mes'] / 12)
+            X_test['mes_cos'] = np.cos(2 * np.pi * X_test['mes'] / 12)
+
+            #-- 4.2 age_nemo y tipo_dia - target encoding
+            #-- 4.2.1 Combinación de age_nemo y tipo_dia para obtener una única columna categórica
+            X_test['dist_tipodia'] = X_test['age_nemo'].astype(str) + '_' + X_test['tipo_dia'].astype(str)
+
+            #-- 4.2.2 Coficación usando las categorías obtenidas en train
+            X_test['dist_tipodia_te'] = X_test['dist_tipodia'].map(encoding)
+
+            #-- 4.2.3 Manejo de categorías nuevas en test
+            X_test['dist_tipodia_te'].fillna(y_train['dem_dia'].mean(), inplace=True)
+
+            #-- 4.2.4 Eliminar columnas originales
+            X_test_coded = X_test.drop(columns=['age_nemo', 'tipo_dia', 'dist_tipodia'])
+        except Exception as e:
+            raise RuntimeError(f"Error al codificar datos de test: {e}")
+
+        #-- 4. Cargar archivos a S3
+        logging.info("Subiendo archivos a S3...")
+        try:
+            wr.s3.to_csv(df=X_train_coded, path=X_train_coded_path, index=False)
+            wr.s3.to_csv(df=X_test_coded, path=X_test_coded_path, index=False)
+            wr.s3.to_csv(df=y_train, path=y_train_path, index=False)
+            wr.s3.to_csv(df=y_test, path=y_test_path, index=False)
+        except Exception as e:
+            raise RuntimeError(f"Error al subir archivos a S3: {e}")
+
+        logging.info("Carga completada.")
+
+        return {
+            "X_train_coded_path": X_train_coded_path,
+            "X_test_coded_path": X_test_coded_path,
+            "y_train_path": y_train_path,
+            "y_test_path": y_test_path
+        }
+
+    
+    get_raw_data_res = get_raw_data(
+        get_variable("dem_csv_url"),
+        get_variable("temp_csv_url"),
+        get_variable("dem_path"),
+        get_variable("temp_path")
+    )
+    data_wrangling_res = data_wrangling(
+        get_raw_data_res,
+        get_variable("clean_data_path")
+    )
+    split_encoding_res = split_encoding(
+        data_wrangling_res,
+        get_variable("X_train_coded_path"),
+        get_variable("X_test_coded_path"),
+        get_variable("y_train_path"),
+        get_variable("y_test_path")
+    )
 
 dag = process_etl_electrical_demand()
