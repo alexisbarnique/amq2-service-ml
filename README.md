@@ -9,6 +9,12 @@ Se agrega esta sección provisoria para hacer comentarios sobre cambios realizad
 -   2025-11-16
     -   Creación de primera DAG con dos tareas: get_raw_data y data_wrangling. No pude hacer que funcionen, pero tengo un problema general para ejecutar dags, por lo que habría que probarlas bien.
     -   Cambio en docker-compose: ejemplos seteados en false para que no cargue las dags de ejemplo (eran 76 y ensuciaban mucho)
+-   2025-11-17
+    -   Ajustes de dag: se eliminaron dependencias innecesarias en entornos virtuales.
+    -   Ajustes docker-compose:
+        -   Se reemplazó el caracter `:` en las rutas de los logs, para compatibilizar con NTFS.
+        -   Se agregaron volumes para temporales de uv, por problemas de permisos.
+        -   Se agregó AIRFLOW__API__SECRET_KEY.
 
 
 # Ejemplo de ambiente productivo
