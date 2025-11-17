@@ -2,10 +2,14 @@
 
 Se agrega esta sección provisoria para hacer comentarios sobre cambios realizados.
 
--   2025-11-15 (Daniel)
+-   2025-11-15
     -   Se modificó el AIRFLOW_UID en el archivo .env al valor 1000. Entiendo que esto lo podemos dejar todos iguales.
     -   En docker-compose.yaml tuve que hacer algunos cambios para que funcione en Linux. No debería afectar al resto.
     -   Subo el notebook del modelo base con los datos necesarios en csv. Realicé algunas simplificaciones respecto al original.
+-   2025-11-16
+    -   Creación de primera DAG con dos tareas: get_raw_data y data_wrangling. No pude hacer que funcionen, pero tengo un problema general para ejecutar dags, por lo que habría que probarlas bien.
+    -   Cambio en docker-compose: ejemplos seteados en false para que no cargue las dags de ejemplo (eran 76 y ensuciaban mucho)
+
 
 # Ejemplo de ambiente productivo
 
