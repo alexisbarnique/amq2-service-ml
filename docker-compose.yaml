@@ -32,6 +32,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${PG_USER:-airflow}:${PG_PASSWORD:-airflow}@postgres/${PG_DATABASE:-airflow}
     AIRFLOW__CORE__FERNET_KEY: ''
     AIRFLOW__API_AUTH__JWT_SECRET: 'qt2Edq6LIRdv5k0DDznVOA=='
+    AIRFLOW__API__SECRET_KEY: 'y9AwmhfsuTaXylpAAET8ET=='
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false' # Change to 'false' to remove the tutorials and examples
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
@@ -39,6 +40,9 @@ x-airflow-common: &airflow-common
     AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'True'
     AIRFLOW__SECRETS__BACKEND: airflow.secrets.local_filesystem.LocalFilesystemBackend
     AIRFLOW__SECRETS__BACKEND_KWARGS: '{"variables_file_path": "/opt/secrets/variables.yaml", "connections_file_path": "/opt/secrets/connections.yaml"}'
+    AIRFLOW__LOGGING__LOG_FILENAME_TEMPLATE: "dag_id={{ ti.dag_id }}/run_id={{ ti.run_id | replace(':','_') }}/task_id={{ ti.task_id }}/attempt={{ ti.try_number }}.log"
+    UV_CACHE_DIR: /opt/airflow/.cache/uv
+    TMPDIR: /opt/airflow/tmp
     AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-minio}
     AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_ACCESS_KEY:-minio123}
     AWS_ENDPOINT_URL_S3: http://s3:9000
@@ -49,6 +53,8 @@ x-airflow-common: &airflow-common
     - ${AIRFLOW_PROJ_DIR:-./airflow}/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-./airflow}/plugins:/opt/airflow/plugins
     - ${AIRFLOW_PROJ_DIR:-./airflow}/secrets:/opt/secrets
+    - uv_cache:/opt/airflow/.cache/uv
+    - tmpdir:/opt/airflow/tmp
   networks:
     - frontend
     - backend
@@ -289,7 +295,7 @@ services:
       airflow-apiserver:
         condition: service_healthy
       airflow-init:
-        condition: service_completed_successfully       
+        condition: service_completed_successfully
 
   airflow-triggerer:
     <<: *airflow-common
@@ -422,3 +428,5 @@ networks:
 volumes:
   db_data:
   minio_data:
+  uv_cache:
+  tmpdir:

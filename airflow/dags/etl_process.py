@@ -15,8 +15,8 @@ default_args = {
     'owner': "Alexis, Bárbara, Brian, Daniel y Gabriela",
     'depends_on_past': False,
     'schedule_interval': None,
-    'retries': 1,
-    'retry_delay': datetime.timedelta(minutes=5),
+    'retries': 0,
+    #'retry_delay': datetime.timedelta(minutes=5),
     'dagrun_timeout': datetime.timedelta(minutes=15)
 }
 
@@ -33,7 +33,7 @@ def process_etl_electrical_demand():
 
     @task.virtualenv(
         task_id="get_raw_data",
-        requirements=["awswrangler==3.6.0","pandas==2.3.3", "logging==0.5.1.2"],
+        requirements=["awswrangler==3.6.0"],
         system_site_packages=True
     )
     def get_raw_data():
@@ -77,7 +77,7 @@ def process_etl_electrical_demand():
 
     @task.virtualenv(
         task_id="data_wrangling",
-        requirements=["awswrangler==3.6.0","pandas==2.3.3", "logging==0.5.1.2"],
+        requirements=["awswrangler==3.6.0"],
         system_site_packages=True
     )
     def data_wrangling():
