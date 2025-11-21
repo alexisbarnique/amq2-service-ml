@@ -1,13 +1,13 @@
 ## Registro de cambios
 
-Se agrega esta sección provisoria para hacer comentarios sobre cambios realizados.
+Se agrega esta sección para hacer comentarios sobre cambios realizados.
 
 -   2025-11-15
-    -   Se modificó el AIRFLOW_UID en el archivo .env al valor 1000. Entiendo que esto lo podemos dejar todos iguales.
-    -   En docker-compose.yaml tuve que hacer algunos cambios para que funcione en Linux. No debería afectar al resto.
-    -   Subo el notebook del modelo base con los datos necesarios en csv. Realicé algunas simplificaciones respecto al original.
+    -   Se modificó el AIRFLOW_UID en el archivo .env al valor 1000. Entiendemos que esto lo podemos dejar todo igual.
+    -   En docker-compose.yaml Daniel tuvo que hacer algunos cambios para que funcione en Linux. No debería afectar al resto.
+    -   Se sube el notebook del modelo base con los datos necesarios en csv. Realizamos algunas simplificaciones respecto al original.
 -   2025-11-16
-    -   Creación de primera DAG con dos tareas: get_raw_data y data_wrangling. No pude hacer que funcionen, pero tengo un problema general para ejecutar dags, por lo que habría que probarlas bien.
+    -   Creación de primera DAG con dos tareas: get_raw_data y data_wrangling. Daniel: No pude hacer que funcionen, pero tengo un problema general para ejecutar dags, por lo que habría que probarlas bien.
     -   Cambio en docker-compose: ejemplos seteados en false para que no cargue las dags de ejemplo (eran 76 y ensuciaban mucho)
 -   2025-11-17
     -   Ajustes de dag: se eliminaron dependencias innecesarias en entornos virtuales.
@@ -19,8 +19,7 @@ Se agrega esta sección provisoria para hacer comentarios sobre cambios realizad
     -   Nueva tarea para split y encoding.
     -   Implementación de variables a través del uso de "Variables" de Airflow. Se creo un archivo /airflow/config/variables.json 
     para el manejo de variables (se evita harcodear)
-    -   Documentación de tareas con docstrings.
-
+    -   Documentación de tareas con docstrings.    
 
 # Ejemplo de ambiente productivo
 
