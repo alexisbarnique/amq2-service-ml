@@ -19,7 +19,16 @@ Se agrega esta sección para hacer comentarios sobre cambios realizados.
     -   Nueva tarea para split y encoding.
     -   Implementación de variables a través del uso de "Variables" de Airflow. Se creo un archivo /airflow/config/variables.json 
     para el manejo de variables (se evita harcodear)
-    -   Documentación de tareas con docstrings.    
+    -   Documentación de tareas con docstrings.
+-   2025-11-30  FASTAPI
+    - `modelo_base/main.py`: adaptado para exponer funciones de entrenamiento/predicción vía API FastAPI.
+    - `modelo_base/train_model.py`: refactorizado para integrarse con endpoints de FastAPI.
+    - `README.md`: actualizado con instrucciones para correr el servicio FastAPI y ejemplos de uso.
+    - Ajustes en notebooks (`demanda_distribuidor.ipynb`) para reflejar la nueva forma de consumir el modelo vía API.
+    - `dockerfiles/fastapi/Dockerfile`: imagen base para servicio FastAPI.
+    - `dockerfiles/fastapi/app.py`: aplicación FastAPI inicial con endpoints de prueba.
+    - `dockerfiles/fastapi/requirements.txt`: dependencias específicas de FastAPI.
+    - Configuración en `docker-compose.yaml` para levantar el servicio FastAPI junto con Airflow, MLflow y Postgres.
 
 # Ejemplo de ambiente productivo
 
