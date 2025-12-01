@@ -29,7 +29,7 @@ Se agrega esta sección para hacer comentarios sobre cambios realizados.
     - `dockerfiles/fastapi/app.py`: aplicación FastAPI inicial con endpoints de prueba.
     - `dockerfiles/fastapi/requirements.txt`: dependencias específicas de FastAPI.
     - Configuración en `docker-compose.yaml` para levantar el servicio FastAPI junto con Airflow, MLflow y Postgres.
-    2025-12-01  DOCKER / STREAMLIT / FASTAPI
+-   2025-12-01  DOCKER / STREAMLIT / FASTAPI
     - `docker-compose.yaml`: actualizado para incluir servicio de Streamlit junto al backend FastAPI.
     - `dockerfiles/fastapi/Dockerfile`: modificado para copiar el modelo `best_model.pkl` y asegurar dependencias de ML.
     - `dockerfiles/fastapi/requirements.txt`: actualizado con librerías adicionales (`joblib`, `numpy`, `xgboost`, `pydantic`).
