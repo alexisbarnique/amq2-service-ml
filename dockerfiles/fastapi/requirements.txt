@@ -1,2 +1,7 @@
 fastapi>=0.116
 uvicorn[standard]>=0.27
+pydantic>=2.0
+joblib
+numpy
+xgboost
+scikit-learn

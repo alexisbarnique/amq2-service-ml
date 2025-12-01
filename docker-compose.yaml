@@ -219,6 +219,26 @@ services:
       start_period: 120s
       retries: 3
 
+      
+  streamlit:
+    restart: always
+    build: "./dockerfiles/streamlit"
+    image: frontend_streamlit
+    container_name: streamlit
+    profiles:
+      - all
+    depends_on:
+      fastapi:
+        condition: service_healthy
+    ports:
+      - "8501:8501"
+    networks:
+      - frontend
+      - backend
+    environment:
+      - API_URL=http://fastapi:8800
+      
+
   airflow-apiserver:
     <<: *airflow-common
     build: './dockerfiles/airflow'
