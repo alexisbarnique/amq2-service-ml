@@ -1,0 +1,42 @@
+{
+  "dataframe_split": {
+    "columns": [
+      "mes",
+      "age_nemo",
+      "tipo_dia",
+      "tmed"
+    ],
+    "data": [
+      [
+        12,
+        "EDESTEMD",
+        3,
+        25.8
+      ],
+      [
+        11,
+        "REFSAFPD",
+        3,
+        25.28
+      ],
+      [
+        10,
+        "EDEMSAMD",
+        1,
+        18.63
+      ],
+      [
+        9,
+        "EDETUCTD",
+        2,
+        21.18
+      ],
+      [
+        12,
+        "EDELAPID",
+        3,
+        22.73
+      ]
+    ]
+  }
+}

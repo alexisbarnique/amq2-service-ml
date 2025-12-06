@@ -145,14 +145,25 @@ services:
       - s3
     networks:
       - backend
+    volumes:
+      - ./dockerfiles/minio/backup_pipeline:/backup_pipeline:ro
     entrypoint: >
       /bin/sh -c '
       sleep 5;
       /usr/bin/mc alias set s3 http://s3:9000 ${MINIO_ACCESS_KEY:-minio} ${MINIO_SECRET_ACCESS_KEY:-minio123};
       /usr/bin/mc mb s3/${MLFLOW_BUCKET_NAME:-mlflow};
       /usr/bin/mc mb s3/${DATA_REPO_BUCKET_NAME:-data};
+
+      if [ -d /backup_pipeline ]; then
+        echo "[init] Mirroring backup_pipeline -> s3/mlflow/backups/demanda_distribuidores/best_model";
+        /usr/bin/mc mirror /backup_pipeline s3/${MLFLOW_BUCKET_NAME:-mlflow}/backups/demanda_distribuidores/best_model
+      else
+        echo "[init] No hay /backup_pipeline, nada que subir.";
+      fi
+      
       exit 0;
       '
+
 
   mlflow:
     restart: always
@@ -230,6 +241,8 @@ services:
     depends_on:
       fastapi:
         condition: service_healthy
+      mlflow:
+        condition: service_healthy
     ports:
       - "8501:8501"
     networks:
@@ -237,6 +250,10 @@ services:
       - backend
     environment:
       - API_URL=http://fastapi:8800
+      - AWS_ACCESS_KEY_ID=${MINIO_ACCESS_KEY:-minio}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_SECRET_ACCESS_KEY:-minio123}
+      - MLFLOW_S3_ENDPOINT_URL=http://s3:9000
+      - AWS_ENDPOINT_URL_S3=http://s3:9000
       
 
   airflow-apiserver:

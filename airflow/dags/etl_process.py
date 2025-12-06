@@ -166,11 +166,11 @@ def process_etl_electrical_demand():
             #-- 3.4 Se toman los promedios mensuales
             clean_data = df.groupby(['year']+cat_cols).mean().round(2).reset_index()
 
-            #-- 3.5 Se agrega la temperatura al cuadrado
-            clean_data['tmed2'] = clean_data['tmed'] ** 2
+            #-- 3.5 Eliminar columna year
+            clean_data = clean_data.drop(columns='year')
 
-            #-- 3.6 Redefinición de columnas numéricas: se elimina year y se agrega tmed2
-            num_cols = ['tmed', 'tmed2']
+            #-- 3.6 Redefinición de columnas numéricas: se elimina year
+            num_cols = ['tmed']
         except Exception as e:
             raise RuntimeError(f"Error al procesar datos de demanda y temperatura: {e}")
 
@@ -190,7 +190,7 @@ def process_etl_electrical_demand():
         requirements=["awswrangler==3.6.0", "scikit-learn==1.7.2"],
         system_site_packages=True
     )
-    def split_encoding(data_wrangling_res, X_train_coded_path, X_test_coded_path, y_train_path, y_test_path):        
+    def retrain(data_wrangling_res):        
         """
         Realiza el split en conjuntos de entrenamiento y test, y aplica codificaciones a las variables categóricas y temporales.
 
@@ -208,17 +208,9 @@ def process_etl_electrical_demand():
                 - cat_cols (list): Lista con nombres de las columnas categóricas.
                 - num_cols (list): Lista con nombres de las columnas numéricas.
                 - target (list): Lista con el nombre de la columna objetivo.
-            X_train_coded_path (str): Ruta en S3 donde se guardará el X_train codificado.
-            X_test_coded_path (str): Ruta en S3 donde se guardará el X_test codificado.
-            y_train_path (str): Ruta en S3 donde se guardará y_train.
-            y_test_path (str): Ruta en S3 donde se guardará y_test.
 
         Returns:
-            dict: Diccionario con las rutas en S3 de los archivos generados.
-                - X_train_coded_path (str): Ruta del X_train codificado en S3.
-                - X_test_coded_path (str): Ruta del X_test codificado en S3.
-                - y_train_path (str): Ruta de y_train en S3.
-                - y_test_path (str): Ruta de y_test en S3.
+            A COMPLETAR
         """
         import awswrangler as wr
         import numpy as np
@@ -252,66 +244,13 @@ def process_etl_electrical_demand():
         except Exception as e:
             raise RuntimeError(f"Error al realizar el split de datos. Detalles: {e}")
 
-        #-- 3. Codificación del train
-        #-- 3.1 Mes - codificación cíclica
-        logging.info("Codificando datos de entrenamiento...")
-        try:
-            X_train['mes_sin'] = np.sin(2 * np.pi * X_train['mes'] / 12)
-            X_train['mes_cos'] = np.cos(2 * np.pi * X_train['mes'] / 12)
+        ##### SE DEBE CONTINUAR CON EL REENTRENAMIENTO
+        ### - Levantar pipeline "champion" de MLFlow
+        ### - Hacer fit con los nuevos datos
+        ### - Comparar métricas entre el modelo reentrenado y el champion (las métricas del champion están en MLFlow).
+        ### - Si el reentrenado es mejor, guardarlo como nueva versión del champion.
 
-            #-- 3.2 age_nemo y tipo_dia - target encoding
-            #-- 3.2.1 Combinación de age_nemo y tipo_dia para obtener una única columna categórica
-            X_train['dist_tipodia'] = X_train['age_nemo'].astype(str) + '_' + X_train['tipo_dia'].astype(str)
-
-            #-- 3.2.2 Target Encoding sobre la nueva columna combinada
-            encoding = pd.concat([X_train, y_train], axis=1).groupby('dist_tipodia')['dem_dia'].mean()
-            X_train['dist_tipodia_te'] = X_train['dist_tipodia'].map(encoding)
-
-            #-- 3.2.3 Eliminar columnas originales
-            X_train_coded = X_train.drop(columns=['age_nemo', 'tipo_dia', 'dist_tipodia'])
-        except Exception as e:
-            raise RuntimeError(f"Error al codificar datos de entrenamiento: {e}")
-
-        #-- 4. Codificación del test
-        #-- 4.1 Mes - codificación cíclica
-        logging.info("Codificando datos de test...")
-        try:
-            X_test['mes_sin'] = np.sin(2 * np.pi * X_test['mes'] / 12)
-            X_test['mes_cos'] = np.cos(2 * np.pi * X_test['mes'] / 12)
-
-            #-- 4.2 age_nemo y tipo_dia - target encoding
-            #-- 4.2.1 Combinación de age_nemo y tipo_dia para obtener una única columna categórica
-            X_test['dist_tipodia'] = X_test['age_nemo'].astype(str) + '_' + X_test['tipo_dia'].astype(str)
-
-            #-- 4.2.2 Coficación usando las categorías obtenidas en train
-            X_test['dist_tipodia_te'] = X_test['dist_tipodia'].map(encoding)
-
-            #-- 4.2.3 Manejo de categorías nuevas en test
-            X_test['dist_tipodia_te'].fillna(y_train['dem_dia'].mean(), inplace=True)
-
-            #-- 4.2.4 Eliminar columnas originales
-            X_test_coded = X_test.drop(columns=['age_nemo', 'tipo_dia', 'dist_tipodia'])
-        except Exception as e:
-            raise RuntimeError(f"Error al codificar datos de test: {e}")
-
-        #-- 4. Cargar archivos a S3
-        logging.info("Subiendo archivos a S3...")
-        try:
-            wr.s3.to_csv(df=X_train_coded, path=X_train_coded_path, index=False)
-            wr.s3.to_csv(df=X_test_coded, path=X_test_coded_path, index=False)
-            wr.s3.to_csv(df=y_train, path=y_train_path, index=False)
-            wr.s3.to_csv(df=y_test, path=y_test_path, index=False)
-        except Exception as e:
-            raise RuntimeError(f"Error al subir archivos a S3: {e}")
-
-        logging.info("Carga completada.")
-
-        return {
-            "X_train_coded_path": X_train_coded_path,
-            "X_test_coded_path": X_test_coded_path,
-            "y_train_path": y_train_path,
-            "y_test_path": y_test_path
-        }
+        # Ver: https://github.com/alexisbarnique/amq2-service-ml/blob/example_implementation/airflow/dags/retrain_the_model.py
 
     
     get_raw_data_res = get_raw_data(
@@ -324,12 +263,8 @@ def process_etl_electrical_demand():
         get_raw_data_res,
         get_variable("clean_data_path")
     )
-    split_encoding_res = split_encoding(
-        data_wrangling_res,
-        get_variable("X_train_coded_path"),
-        get_variable("X_test_coded_path"),
-        get_variable("y_train_path"),
-        get_variable("y_test_path")
+    retrain_res = retrain(
+        data_wrangling_res
     )
 
 dag = process_etl_electrical_demand()

@@ -2,7 +2,7 @@
 
 .coverage
 .idea/
-
+modelo_base/mlruns/
 logs/
 
 # Byte-compiled / optimized / DLL files

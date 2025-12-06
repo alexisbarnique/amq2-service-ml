@@ -1,2 +1,7 @@
 streamlit
 requests
+mlflow
+pandas
+boto3
+xgboost
+scikit-learn
