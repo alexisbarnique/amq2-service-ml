@@ -185,86 +185,199 @@ def process_etl_electrical_demand():
         return {"clean_data_path": clean_data_path, "cat_cols": cat_cols, "num_cols": num_cols, "target":target}
 
 
-    @task.virtualenv(
-        task_id="split_encoding",
-        requirements=["awswrangler==3.6.0", "scikit-learn==1.7.2"],
-        system_site_packages=True
+@task.virtualenv(
+    task_id="split_encoding",
+    requirements=[
+        "awswrangler",
+        "scikit-learn",
+        "mlflow",
+        "xgboost",
+    ],
+    system_site_packages=True,
+)
+def retrain(data_wrangling_res):
+    """
+    Reentrena el modelo de demanda y actualiza el champion si el nuevo modelo
+    mejora el MAE en el conjunto de test actual.
+    """
+    import awswrangler as wr
+    import logging
+    import datetime
+
+    from sklearn.model_selection import train_test_split
+    from sklearn.base import clone
+    from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
+
+    import mlflow
+    import mlflow.sklearn
+    from mlflow.models import infer_signature
+
+    # Datos generados por la tarea de data_wrangling
+    clean_data_path = data_wrangling_res["clean_data_path"]
+    cat_cols = data_wrangling_res["cat_cols"]
+    num_cols = data_wrangling_res["num_cols"]
+    target = data_wrangling_res["target"]  # lista con un solo nombre de columna
+
+    # Leer datos limpios desde S3
+    logging.info("Cargando datos limpios desde S3...")
+    try:
+        clean_df = wr.s3.read_csv(clean_data_path)
+    except Exception as e:
+        raise RuntimeError(
+            f"Error al leer datos limpios de S3 en {clean_data_path}. Detalles: {e}"
+        )
+
+    # Split train/test estratificado por columnas categóricas
+    logging.info("Realizando split train/test...")
+    try:
+        X = clean_df[cat_cols + num_cols]
+        # target es una lista con un solo elemento → tomamos la serie 1D
+        y = clean_df[target].iloc[:, 0]
+        strata = clean_df[cat_cols]
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            X,
+            y,
+            test_size=0.3,
+            random_state=42,
+            stratify=strata,
+        )
+    except Exception as e:
+        raise RuntimeError(f"Error al realizar el split de datos. Detalles: {e}")
+
+    # Guardar splits en S3 para trazabilidad
+    logging.info("Guardando splits en S3...")
+    try:
+        wr.s3.to_csv(
+            df=X_train,
+            path="s3://data/clean/X_train_coded.csv",
+            index=False,
+        )
+        wr.s3.to_csv(
+            df=X_test,
+            path="s3://data/clean/X_test_coded.csv",
+            index=False,
+        )
+        wr.s3.to_csv(
+            df=y_train.to_frame(name=target[0]),
+            path="s3://data/clean/y_train.csv",
+            index=False,
+        )
+        wr.s3.to_csv(
+            df=y_test.to_frame(name=target[0]),
+            path="s3://data/clean/y_test.csv",
+            index=False,
+        )
+    except Exception as e:
+        raise RuntimeError(f"Error al guardar los splits en S3: {e}")
+
+    # Configuración de MLflow (tracking server del docker-compose)
+    mlflow.set_tracking_uri("http://mlflow:5000")
+    experiment = mlflow.set_experiment("Demanda Distribuidores")
+
+    client = mlflow.MlflowClient()
+    model_name = "demanda_distribuidores"
+
+    # Cargar modelo champion desde el Model Registry
+    logging.info("Cargando modelo 'champion' desde MLflow Model Registry...")
+    champion_version = client.get_model_version_by_alias(model_name, "champion")
+    champion_model = mlflow.sklearn.load_model(champion_version.source)
+
+    # Evaluar champion en el test actual
+    y_pred_champion = champion_model.predict(X_test)
+    mae_champion = mean_absolute_error(y_test, y_pred_champion)
+    mape_champion = mean_absolute_percentage_error(y_test, y_pred_champion)
+
+    # Clonar pipeline champion para usarlo como challenger
+    logging.info("Entrenando modelo 'challenger' a partir del champion...")
+    challenger_model = clone(champion_model)
+
+    run_name = "retrain_challenger_" + datetime.datetime.today().strftime(
+        "%Y-%m-%d_%H:%M:%S"
     )
-    def retrain(data_wrangling_res):        
-        """
-        Realiza el split en conjuntos de entrenamiento y test, y aplica codificaciones a las variables categóricas y temporales.
 
-        Proceso:
-        - Lee el dataset limpio desde S3, usando la ruta provista por la tarea anterior.
-        - Separa los datos en X_train, X_test, y_train, y_test usando `train_test_split`.
-        - Aplica codificación cíclica a la columna 'mes'.
-        - Aplica target encoding a la combinación de 'age_nemo' y 'tipo_dia'.
-        - Elimina las columnas originales categóricas tras la codificación.
-        - Guarda los datasets procesados en S3.
+    with mlflow.start_run(
+        run_name=run_name,
+        experiment_id=experiment.experiment_id,
+        tags={"stage": "retrain", "model_name": model_name},
+        log_system_metrics=True,
+    ):
+        # Entrenar challenger con los datos nuevos
+        challenger_model.fit(X_train, y_train)
 
-        Args:
-            data_wrangling_res (dict): Diccionario retornado por la tarea data_wrangling, con:
-                - clean_data_path (str): Ruta en S3 del archivo limpio.
-                - cat_cols (list): Lista con nombres de las columnas categóricas.
-                - num_cols (list): Lista con nombres de las columnas numéricas.
-                - target (list): Lista con el nombre de la columna objetivo.
+        # Evaluar challenger en el mismo test
+        y_pred_challenger = challenger_model.predict(X_test)
+        mae_challenger = mean_absolute_error(y_test, y_pred_challenger)
+        mape_challenger = mean_absolute_percentage_error(y_test, y_pred_challenger)
 
-        Returns:
-            A COMPLETAR
-        """
-        import awswrangler as wr
-        import numpy as np
-        import pandas as pd
-        import logging
-        from sklearn.model_selection import train_test_split
+        # Loguear métricas de champion vs challenger
+        mlflow.log_metric("mae_champion", float(mae_champion))
+        mlflow.log_metric("mape_champion", float(mape_champion))
+        mlflow.log_metric("mae_challenger", float(mae_challenger))
+        mlflow.log_metric("mape_challenger", float(mape_challenger))
 
-        #-- 0. Datos de tarea anterior
-        clean_data_path = data_wrangling_res["clean_data_path"]
-        cat_cols = data_wrangling_res["cat_cols"]
-        num_cols = data_wrangling_res["num_cols"]
-        target = data_wrangling_res["target"]
-
-        #-- 1. Lectura de datos limpios
-        logging.info("Cargando datos...")
+        # Loguear parámetros del modelo challenger (para inspección en MLflow)
         try:
-            clean_df = wr.s3.read_csv(clean_data_path)
-        except Exception as e:
-            raise RuntimeError(f"Error al leer el archivo de datos limpios de S3 en {clean_data_path}. Detalles: {e}")
+            params = challenger_model.get_params()
+        except Exception:
+            params = {}
+        params["model"] = type(challenger_model).__name__
+        mlflow.log_params(params)
 
-        #-- 2. Split
-        logging.info("Realizando split...")
-        try:
-            X_train, X_test, y_train, y_test = train_test_split(
-                clean_df[cat_cols + num_cols],
-                clean_df[target],
-                test_size=0.3,
-                random_state=42,
-                stratify=clean_df[cat_cols]
+        # Guardar el modelo challenger como artefacto de MLflow
+        artifact_path = "retrained_model"
+        input_example = X_train.head(5)
+        signature = infer_signature(
+            input_example, challenger_model.predict(input_example)
+        )
+
+        info = mlflow.sklearn.log_model(
+            sk_model=challenger_model,
+            artifact_path=artifact_path,
+            signature=signature,
+            input_example=input_example,
+        )
+
+        model_uri = info.model_uri
+        run_id = info.run_id
+
+        # Comparar y, si el challenger es mejor, registrarlo como nuevo champion
+        logging.info(
+            f"MAE champion = {mae_champion:.3f} | MAE challenger = {mae_challenger:.3f}"
+        )
+
+        if mae_challenger < mae_champion:
+            logging.info(
+                "El challenger mejora al champion: registrando nueva versión como 'champion'..."
             )
-        except Exception as e:
-            raise RuntimeError(f"Error al realizar el split de datos. Detalles: {e}")
 
-        ##### SE DEBE CONTINUAR CON EL REENTRENAMIENTO
-        ### - Levantar pipeline "champion" de MLFlow
-        ### - Hacer fit con los nuevos datos
-        ### - Comparar métricas entre el modelo reentrenado y el champion (las métricas del champion están en MLFlow).
-        ### - Si el reentrenado es mejor, guardarlo como nueva versión del champion.
+            tags = {
+                "mae_test": float(mae_challenger),
+                "mape_test": float(mape_challenger),
+                "model": type(challenger_model).__name__,
+            }
 
-        # Ver: https://github.com/alexisbarnique/amq2-service-ml/blob/example_implementation/airflow/dags/retrain_the_model.py
+            result = client.create_model_version(
+                name=model_name,
+                source=model_uri,
+                run_id=run_id,
+                tags=tags,
+            )
 
-    
-    get_raw_data_res = get_raw_data(
-        get_variable("dem_csv_url"),
-        get_variable("temp_csv_url"),
-        get_variable("dem_path"),
-        get_variable("temp_path")
-    )
-    data_wrangling_res = data_wrangling(
-        get_raw_data_res,
-        get_variable("clean_data_path")
-    )
-    retrain_res = retrain(
-        data_wrangling_res
-    )
+            # Actualizar alias 'champion' a la nueva versión
+            client.set_registered_model_alias(model_name, "champion", result.version)
+            mlflow.log_param("winner", "challenger")
+        else:
+            logging.info(
+                "El champion actual sigue siendo mejor: se mantiene la versión actual."
+            )
+            mlflow.log_param("winner", "champion")
+
+    # Métricas básicas para inspeccionar en XCom
+    return {
+        "mae_champion": float(mae_champion),
+        "mae_challenger": float(mae_challenger),
+    }
+
 
 dag = process_etl_electrical_demand()
