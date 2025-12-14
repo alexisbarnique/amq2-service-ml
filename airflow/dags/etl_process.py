@@ -16,7 +16,7 @@ default_args = {
     'schedule_interval': None,
     'retries': 0,
     #'retry_delay': datetime.timedelta(minutes=5),
-    'dagrun_timeout': datetime.timedelta(minutes=15)
+    'dagrun_timeout': datetime.timedelta(minutes=30)
 }
 
 @dag(
@@ -557,12 +557,16 @@ def process_etl_electrical_demand():
             log_system_metrics=True,
         ):
             # Entrenar challenger con los datos nuevos
+            logging.info(f"Iniciando entrenamiento del challenger con {len(X_train)} muestras...")
             challenger_model.fit(X_train, y_train)
+            logging.info("Entrenamiento del challenger completado.")
 
             # Evaluar challenger en el mismo test
+            logging.info("Evaluando modelo challenger...")
             y_pred_challenger = challenger_model.predict(X_test)
             mae_challenger = mean_absolute_error(y_test, y_pred_challenger)
             mape_challenger = mean_absolute_percentage_error(y_test, y_pred_challenger)
+            logging.info(f"Evaluación completada: MAE={mae_challenger:.3f}, MAPE={mape_challenger:.3f}")
 
             # Loguear métricas de champion vs challenger
             mlflow.log_metric("mae_champion", float(mae_champion))
@@ -579,6 +583,7 @@ def process_etl_electrical_demand():
             mlflow.log_params(params)
 
             # Guardar el modelo challenger como artefacto de MLflow
+            logging.info("Guardando modelo challenger en MLflow...")
             artifact_path = "trained_model"
             input_example = X_train.head(5)
             signature = infer_signature(
@@ -591,6 +596,7 @@ def process_etl_electrical_demand():
                 signature=signature,
                 input_example=input_example,
             )
+            logging.info(f"Modelo guardado exitosamente. URI: {info.model_uri}")
 
             model_uri = info.model_uri
             run_id = info.run_id
@@ -621,13 +627,21 @@ def process_etl_electrical_demand():
                 # Actualizar alias 'champion' a la nueva versión
                 client.set_registered_model_alias(model_name, "champion", result.version)
                 mlflow.log_param("winner", "challenger")
+                logging.info(f"✅ Nuevo champion registrado: v{result.version} con MAE={mae_challenger:.3f}")
             else:
                 logging.info(
                     "El champion actual sigue siendo mejor: se mantiene la versión actual."
                 )
                 mlflow.log_param("winner", "champion")
+                logging.info(f"✅ Champion actual mantiene el mejor desempeño: MAE={mae_champion:.3f}")
 
         # Métricas básicas para inspeccionar en XCom
+        logging.info("=" * 50)
+        logging.info("🎯 REENTRENAMIENTO COMPLETADO EXITOSAMENTE")
+        logging.info(f"   Champion MAE: {mae_champion:.3f}")
+        logging.info(f"   Challenger MAE: {mae_challenger:.3f}")
+        logging.info(f"   Mejor modelo: {'Challenger' if mae_challenger < mae_champion else 'Champion'}")
+        logging.info("=" * 50)
         return {
             "mae_champion": float(mae_champion),
             "mae_challenger": float(mae_challenger),
