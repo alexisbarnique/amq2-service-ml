@@ -1,0 +1,15 @@
+jupyter
+jupyterlab
+numpy
+pandas
+scikit-learn
+xgboost
+optuna
+mlflow
+boto3
+pyyaml
+ipykernel
+matplotlib
+seaborn
+optuna_integration
+optuna-integration[mlflow]

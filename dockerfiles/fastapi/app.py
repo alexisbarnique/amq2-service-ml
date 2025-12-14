@@ -128,14 +128,22 @@ class InputData(BaseModel):
 
 @app.post("/predict/")
 async def predict(data: InputData):
-    logging.info(f"Datos recibidos: {data}")
+    logging.info(f"Datos recibidos: mes={data.mes} age_nemo='{data.age_nemo}' tipo_dia={data.tipo_dia} tmed={data.tmed}")
 
-    X = pd.DataFrame([
-    {"mes": data.mes,  "age_nemo": data.age_nemo, "tipo_dia": data.tipo_dia, "tmed": data.tmed}
-])
-    logging.info(f"Vector de features: {X}")
+    # Crear DataFrame con el orden correcto de columnas
+    X = pd.DataFrame({
+        "mes": [data.mes],
+        "age_nemo": [data.age_nemo],
+        "tipo_dia": [data.tipo_dia],
+        "tmed": [data.tmed]
+    })
+    logging.info(f"Vector de features:\n{X}")
+    logging.info(f"Tipos de datos:\n{X.dtypes}")
 
-    y_pred = pipeline.predict(X)
-    logging.info(f"Predicción generada: {y_pred}")
-
-    return {"prediction": float(y_pred[0])}
+    try:
+        y_pred = pipeline.predict(X)
+        logging.info(f"Predicción generada: {y_pred}")
+        return {"prediction": float(y_pred[0])}
+    except Exception as e:
+        logging.error(f"Error en predicción: {type(e).__name__}: {str(e)}")
+        raise

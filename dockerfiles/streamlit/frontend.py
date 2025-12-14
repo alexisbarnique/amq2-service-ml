@@ -71,3 +71,104 @@ if st.button("Predecir"):
         st.success(f"Predicción de demanda: {round(result['prediction']/1000,2)} GWh")
     else:
         st.error("Error al consultar la API")
+
+# Sección de reentrenamiento
+st.divider()
+st.subheader("🔄 Gestión del Modelo")
+
+st.write("Administra el ciclo de vida del modelo de demanda eléctrica.")
+
+# URL de Airflow (ajustar según tu configuración)
+AIRFLOW_URL = os.getenv("AIRFLOW_URL", "http://airflow-apiserver:8080")
+
+# Crear sesión con autenticación
+def get_airflow_token():
+    """Get JWT token from Airflow Simple Auth Manager"""
+    import requests
+    
+    try:
+        # With simple_auth_manager_all_admins=True, we can get a token without credentials
+        response = requests.get(
+            f"{AIRFLOW_URL}/auth/token",
+            timeout=10
+        )
+        
+        if response.status_code in [200, 201]:
+            result = response.json()
+            return result.get("access_token")
+        else:
+            st.error(f"Error obteniendo token: {response.status_code}")
+            return None
+    except Exception as e:
+        st.error(f"Error de conexión al obtener token: {str(e)}")
+        return None
+
+def trigger_dag(dag_id, dag_name):
+    """Helper function to trigger a DAG with JWT token authentication"""
+    import requests
+    from datetime import datetime, timezone
+    
+    try:
+        # Get JWT token
+        token = get_airflow_token()
+        if not token:
+            return None
+        
+        # Trigger DAG with token
+        # Airflow 3.0 API requires logical_date
+        logical_date = datetime.now(timezone.utc).isoformat()
+        response = requests.post(
+            f"{AIRFLOW_URL}/api/v2/dags/{dag_id}/dagRuns",
+            json={"logical_date": logical_date},
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {token}"
+            },
+            timeout=30
+        )
+        
+        return response
+    except Exception as e:
+        st.error(f"Error de conexión: {str(e)}")
+        return None
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("### 🔄 Reentrenamiento Rápido")
+    st.write("Reentrena el modelo con datos actualizados manteniendo los mismos hiperparámetros.")
+    
+    if st.button("🚀 Reentrenar Modelo", use_container_width=True):
+        DAG_ID = "process_etl_electrical_demand"
+        with st.spinner("Ejecutando reentrenamiento..."):
+            response = trigger_dag(DAG_ID, "Reentrenamiento")
+            
+            if response and response.status_code in [200, 201]:
+                result = response.json()
+                dag_run_id = result.get("dag_run_id", "N/A")
+                st.success(f"✅ Reentrenamiento iniciado! Run ID: {dag_run_id}")
+                st.info(f"Monitorea el progreso: http://localhost:8080/dags/{DAG_ID}/grid")
+            elif response:
+                st.error(f"❌ Error: {response.status_code}")
+                st.error(f"Detalle: {response.text}")
+                st.info("💡 Prueba ejecutar manualmente desde Airflow UI: http://localhost:8080")
+
+with col2:
+    st.markdown("### 🎯 Optimización Completa")
+    st.write("Búsqueda de hiperparámetros con Optuna para mejorar el rendimiento del modelo.")
+    
+    if st.button("⚡ Optimizar Hiperparámetros", use_container_width=True):
+        DAG_ID = "hyperparameter_tuning"
+        with st.spinner("Ejecutando optimización (esto puede tomar tiempo)..."):
+            response = trigger_dag(DAG_ID, "Optimización")
+            
+            if response and response.status_code in [200, 201]:
+                result = response.json()
+                dag_run_id = result.get("dag_run_id", "N/A")
+                st.success(f"✅ Optimización iniciada! Run ID: {dag_run_id}")
+                st.info(f"Monitorea el progreso: http://localhost:8080/dags/{DAG_ID}/grid")
+                st.warning("⏱️ Esta operación puede tomar 30-60 minutos.")
+            elif response:
+                st.error(f"❌ Error: {response.status_code}")
+                st.error(f"Detalle: {response.text}")
+                st.info("💡 Prueba ejecutar manualmente desde Airflow UI: http://localhost:8080")
