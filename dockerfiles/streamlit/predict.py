@@ -29,7 +29,7 @@ except:
 age_map = pipeline.named_steps['pre'].mapping_.reset_index()
 age_unique_list = sorted(age_map['dist_tipodia'].str[:-2].unique(), key=str.casefold)
 
-st.title("Demanda Eléctrica ⚡")
+st.title("Demanda Eléctrica ⚡ predicción puntual")
 st.subheader("Estimación de demanda diaria por distruibuidora eléctrica", divider="gray")
 
 # Inputs de usuario
@@ -71,6 +71,8 @@ if st.button("Predecir"):
         st.success(f"Predicción de demanda: {round(result['prediction']/1000,2)} GWh")
     else:
         st.error("Error al consultar la API")
+
+
 
 # Sección de reentrenamiento
 st.divider()

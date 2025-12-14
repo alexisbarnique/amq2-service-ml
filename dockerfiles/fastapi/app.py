@@ -7,6 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 import logging
+import awswrangler as wr
 
 logging.basicConfig(level=logging.INFO)
 
@@ -147,3 +148,32 @@ async def predict(data: InputData):
     except Exception as e:
         logging.error(f"Error en predicción: {type(e).__name__}: {str(e)}")
         raise
+
+
+@app.post("/batch_predict/")
+async def batch_predict():
+    logging.info(f"Obteniendo datos de todos los meses, tipos de dia y distribuidoras con sus temperaturas promedio del mes")
+
+    dem_csv_url = os.environ['DEM_CSV_URL']
+    dem_df = wr.s3.read_csv(dem_csv_url)
+
+    logging.info(f"Obteniendo promedios de temperaturas por mes por distribuidora")
+
+    temp_csv_url = os.environ['TEMP_CSV_URL']
+    temp_df = wr.s3.read_csv(temp_csv_url)
+        
+    dem_df_unique = dem_df.drop_duplicates(subset=['mes', 'tipo_dia', 'age_nemo'])
+    dem_df_unique = dem_df_unique.drop(columns=['fecha', 'anio_cal', 'dem_dia'])
+
+    temp_df['mes']=pd.to_datetime(temp_df['fecha']).dt.month
+    
+    temp_df_grouped = temp_df.groupby(['mes', 'region'], as_index=False).mean(numeric_only=True).rename(columns={'region':'rge_nemo'})
+
+    X = dem_df_unique.merge(temp_df_grouped, on=['mes','rge_nemo'], how='left').drop(columns=['rge_nemo'])
+
+    logging.info(f"Realizando prediccion.")
+
+    y_pred = pipeline.predict(X)
+    logging.info(f"Predicción generada: {y_pred[:5]}")
+
+    return {"prediction": float(y_pred[:5])}

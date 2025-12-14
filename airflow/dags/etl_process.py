@@ -461,7 +461,13 @@ def process_etl_electrical_demand():
         from sklearn.model_selection import train_test_split
         from sklearn.base import clone
         from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
+        from sklearn.model_selection import train_test_split
+        from sklearn.base import clone
+        from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
 
+        import mlflow
+        import mlflow.sklearn
+        from mlflow.models import infer_signature
         import mlflow
         import mlflow.sklearn
         from mlflow.models import infer_signature
@@ -471,7 +477,20 @@ def process_etl_electrical_demand():
         cat_cols = data_wrangling_res["cat_cols"]
         num_cols = data_wrangling_res["num_cols"]
         target = data_wrangling_res["target"]  # lista con un solo nombre de columna
+        # Datos generados por la tarea de data_wrangling
+        clean_data_path = data_wrangling_res["clean_data_path"]
+        cat_cols = data_wrangling_res["cat_cols"]
+        num_cols = data_wrangling_res["num_cols"]
+        target = data_wrangling_res["target"]  # lista con un solo nombre de columna
 
+        # Leer datos limpios desde S3
+        logging.info("Cargando datos limpios desde S3...")
+        try:
+            clean_df = wr.s3.read_csv(clean_data_path)
+        except Exception as e:
+            raise RuntimeError(
+                f"Error al leer datos limpios de S3 en {clean_data_path}. Detalles: {e}"
+            )
         # Leer datos limpios desde S3
         logging.info("Cargando datos limpios desde S3...")
         try:
@@ -488,7 +507,23 @@ def process_etl_electrical_demand():
             # target es una lista con un solo elemento → tomamos la serie 1D
             y = clean_df[target].iloc[:, 0]
             strata = clean_df[cat_cols]
+        # Split train/test estratificado por columnas categóricas
+        logging.info("Realizando split train/test...")
+        try:
+            X = clean_df[cat_cols + num_cols]
+            # target es una lista con un solo elemento → tomamos la serie 1D
+            y = clean_df[target].iloc[:, 0]
+            strata = clean_df[cat_cols]
 
+            X_train, X_test, y_train, y_test = train_test_split(
+                X,
+                y,
+                test_size=0.3,
+                random_state=42,
+                stratify=strata,
+            )
+        except Exception as e:
+            raise RuntimeError(f"Error al realizar el split de datos. Detalles: {e}")
             X_train, X_test, y_train, y_test = train_test_split(
                 X,
                 y,
@@ -524,14 +559,48 @@ def process_etl_electrical_demand():
             )
         except Exception as e:
             raise RuntimeError(f"Error al guardar los splits en S3: {e}")
+        # Guardar splits en S3 para trazabilidad
+        logging.info("Guardando splits en S3...")
+        try:
+            wr.s3.to_csv(
+                df=X_train,
+                path="s3://data/clean/X_train_coded.csv",
+                index=False,
+            )
+            wr.s3.to_csv(
+                df=X_test,
+                path="s3://data/clean/X_test_coded.csv",
+                index=False,
+            )
+            wr.s3.to_csv(
+                df=y_train.to_frame(name=target[0]),
+                path="s3://data/clean/y_train.csv",
+                index=False,
+            )
+            wr.s3.to_csv(
+                df=y_test.to_frame(name=target[0]),
+                path="s3://data/clean/y_test.csv",
+                index=False,
+            )
+        except Exception as e:
+            raise RuntimeError(f"Error al guardar los splits en S3: {e}")
 
+        # Configuración de MLflow (tracking server del docker-compose)
+        mlflow.set_tracking_uri("http://mlflow:5000")
+        experiment = mlflow.set_experiment("Demanda Distribuidores")
         # Configuración de MLflow (tracking server del docker-compose)
         mlflow.set_tracking_uri("http://mlflow:5000")
         experiment = mlflow.set_experiment("Demanda Distribuidores")
 
         client = mlflow.MlflowClient()
         model_name = "demanda_distribuidores"
+        client = mlflow.MlflowClient()
+        model_name = "demanda_distribuidores"
 
+        # Cargar modelo champion desde el Model Registry
+        logging.info("Cargando modelo 'champion' desde MLflow Model Registry...")
+        champion_version = client.get_model_version_by_alias(model_name, "champion")
+        champion_model = mlflow.sklearn.load_model(champion_version.source)
         # Cargar modelo champion desde el Model Registry
         logging.info("Cargando modelo 'champion' desde MLflow Model Registry...")
         champion_version = client.get_model_version_by_alias(model_name, "champion")
@@ -541,7 +610,14 @@ def process_etl_electrical_demand():
         y_pred_champion = champion_model.predict(X_test)
         mae_champion = mean_absolute_error(y_test, y_pred_champion)
         mape_champion = mean_absolute_percentage_error(y_test, y_pred_champion)
+        # Evaluar champion en el test actual
+        y_pred_champion = champion_model.predict(X_test)
+        mae_champion = mean_absolute_error(y_test, y_pred_champion)
+        mape_champion = mean_absolute_percentage_error(y_test, y_pred_champion)
 
+        # Clonar pipeline champion para usarlo como challenger
+        logging.info("Entrenando modelo 'challenger' a partir del champion...")
+        challenger_model = clone(champion_model)
         # Clonar pipeline champion para usarlo como challenger
         logging.info("Entrenando modelo 'challenger' a partir del champion...")
         challenger_model = clone(champion_model)
@@ -573,7 +649,19 @@ def process_etl_electrical_demand():
             mlflow.log_metric("mape_champion", float(mape_champion))
             mlflow.log_metric("mae_challenger", float(mae_challenger))
             mlflow.log_metric("mape_challenger", float(mape_challenger))
+            # Loguear métricas de champion vs challenger
+            mlflow.log_metric("mae_champion", float(mae_champion))
+            mlflow.log_metric("mape_champion", float(mape_champion))
+            mlflow.log_metric("mae_challenger", float(mae_challenger))
+            mlflow.log_metric("mape_challenger", float(mape_challenger))
 
+            # Loguear parámetros del modelo challenger (para inspección en MLflow)
+            try:
+                params = challenger_model.get_params()
+            except Exception:
+                params = {}
+            params["model"] = type(challenger_model).__name__
+            mlflow.log_params(params)
             # Loguear parámetros del modelo challenger (para inspección en MLflow)
             try:
                 params = challenger_model.get_params()
@@ -600,12 +688,22 @@ def process_etl_electrical_demand():
 
             model_uri = info.model_uri
             run_id = info.run_id
+            model_uri = info.model_uri
+            run_id = info.run_id
 
             # Comparar y, si el challenger es mejor, registrarlo como nuevo champion
             logging.info(
                 f"MAE champion = {mae_champion:.3f} | MAE challenger = {mae_challenger:.3f}"
             )
+            # Comparar y, si el challenger es mejor, registrarlo como nuevo champion
+            logging.info(
+                f"MAE champion = {mae_champion:.3f} | MAE challenger = {mae_challenger:.3f}"
+            )
 
+            if mae_challenger < mae_champion:
+                logging.info(
+                    "El challenger mejora al champion: registrando nueva versión como 'champion'..."
+                )
             if mae_challenger < mae_champion:
                 logging.info(
                     "El challenger mejora al champion: registrando nueva versión como 'champion'..."
@@ -616,7 +714,18 @@ def process_etl_electrical_demand():
                     "mape_test": float(mape_challenger),
                     "model": type(challenger_model).__name__,
                 }
+                tags = {
+                    "mae_test": float(mae_challenger),
+                    "mape_test": float(mape_challenger),
+                    "model": type(challenger_model).__name__,
+                }
 
+                result = client.create_model_version(
+                    name=model_name,
+                    source=model_uri,
+                    run_id=run_id,
+                    tags=tags,
+                )
                 result = client.create_model_version(
                     name=model_name,
                     source=model_uri,
