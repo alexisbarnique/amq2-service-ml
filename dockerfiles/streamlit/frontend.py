@@ -147,7 +147,7 @@ with col1:
                 result = response.json()
                 dag_run_id = result.get("dag_run_id", "N/A")
                 st.success(f"✅ Reentrenamiento iniciado! Run ID: {dag_run_id}")
-                st.info(f"Monitorea el progreso: http://localhost:8080/dags/{DAG_ID}/grid")
+                st.info(f"Monitorea el progreso: http://localhost:8080/dags/{DAG_ID}")
             elif response:
                 st.error(f"❌ Error: {response.status_code}")
                 st.error(f"Detalle: {response.text}")
@@ -166,7 +166,7 @@ with col2:
                 result = response.json()
                 dag_run_id = result.get("dag_run_id", "N/A")
                 st.success(f"✅ Optimización iniciada! Run ID: {dag_run_id}")
-                st.info(f"Monitorea el progreso: http://localhost:8080/dags/{DAG_ID}/grid")
+                st.info(f"Monitorea el progreso: http://localhost:8080/dags/{DAG_ID}")
                 st.warning("⏱️ Esta operación puede tomar 30-60 minutos.")
             elif response:
                 st.error(f"❌ Error: {response.status_code}")

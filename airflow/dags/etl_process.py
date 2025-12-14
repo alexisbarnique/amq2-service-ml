@@ -633,4 +633,16 @@ def process_etl_electrical_demand():
             "mae_challenger": float(mae_challenger),
         }
 
+    # Get Airflow variables
+    dem_csv_url = get_variable("dem_csv_url")
+    temp_csv_url = get_variable("temp_csv_url")
+    dem_path = get_variable("dem_path")
+    temp_path = get_variable("temp_path")
+    clean_data_path = get_variable("clean_data_path")
+
+    # Invoke tasks and define dependencies for quick retraining workflow
+    get_raw_data_result = get_raw_data(dem_csv_url, temp_csv_url, dem_path, temp_path)
+    data_wrangling_result = data_wrangling(get_raw_data_result, clean_data_path)
+    train_result = train(data_wrangling_result)
+
 dag = process_etl_electrical_demand()
