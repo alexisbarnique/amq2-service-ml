@@ -2,12 +2,59 @@ import os
 import mlflow
 import pandas as pd
 import fastapi
-from pydantic import BaseModel, Field, validator
+from fastapi import Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 import logging
 
 logging.basicConfig(level=logging.INFO)
 
 app = fastapi.FastAPI()
+
+# Traducciones de mensajes de validación
+VALIDATION_MESSAGES = {
+    "less_than_equal": "debe ser menor o igual a",
+    "greater_than_equal": "debe ser mayor o igual a",
+    "string_too_short": "debe tener al menos",
+    "string_too_long": "debe tener como máximo",
+    "missing": "campo requerido",
+    "value_error": "valor no válido",
+}
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = []
+    for error in exc.errors():
+        error_type = error["type"]
+        field = error["loc"][-1] if error["loc"] else "unknown"
+        
+        if error_type == "less_than_equal":
+            msg = f"{field} debe ser menor o igual a {error['ctx']['le']}"
+        elif error_type == "greater_than_equal":
+            msg = f"{field} debe ser mayor o igual a {error['ctx']['ge']}"
+        elif error_type == "string_too_short":
+            msg = f"{field} debe tener al menos {error['ctx']['min_length']} caracteres"
+        elif error_type == "string_too_long":
+            msg = f"{field} debe tener como máximo {error['ctx']['max_length']} caracteres"
+        elif error_type == "missing":
+            msg = f"{field} es un campo requerido"
+        elif error_type == "value_error":
+            msg = str(error.get("msg", "valor no válido"))
+        else:
+            msg = error.get("msg", "error de validación")
+        
+        errors.append({
+            "campo": field,
+            "tipo": error_type,
+            "mensaje": msg,
+            "valor_recibido": error.get("input")
+        })
+    
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"errores": errors}
+    )
 
 try:
     # Intenta cargar pipeline de MLFlow
@@ -46,119 +93,38 @@ AGE_NEMO_CODES = {
 }
 
 class InputData(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "mes": 9,
+                "age_nemo": "C3AR3A3W",
+                "tipo_dia": 1,
+                "tmed": 15.5
+            }
+        }
+    )
+    
     mes: int = Field(..., ge=1, le=12, description="Mes del año (1-12)")
-    age_nemo: str = Field(..., min_length=8, description="Código de Agencia")
+    age_nemo: str = Field(..., min_length=8, max_length=8, description="Código de Agencia")
     tipo_dia: int = Field(..., ge=1, le=3, description="Tipo de día (1-3)")
     tmed: float = Field(..., ge=-50.0, le=60.0, description="Temperatura media en grados Celsius")
 
-    @validator("age_nemo")
+    @field_validator("age_nemo")
+    @classmethod
     def validate_age_nemo(cls, v):
         if not v or not v.strip():
             raise ValueError("age_nemo no puede estar vacío")
         v = v.strip()
         if v not in AGE_NEMO_CODES:
-            raise ValueError(f"age_nemo '{v}' no es un valor permitido. Valores posibles: age_nemo
-C3AR3A3W
-CARECO1W
-CBARKE3W
-CCASTE3W
-CCHACA1W
-CCOLON1W
-CDORRE2W
-CEVIGE3W
-CLEZAM3W
-CLFLOR3W
-CLUJAN1W
-CMONTE1W
-CMOREN1W
-CNECNE3W
-COAZUL3W
-COLAVA3W
-SPSECRZD
-MUPITRZW
-DGSPCHUD
-CTRELEUW
-CPERGA1W
-CPIGUE2W
-CPRING2W
-CPUNTA2W
-CRAMAL1W
-CRANCH3W
-CRIVAD1W
-CROJAS1W
-CSALAD1W
-CSALTO1W
-CSBERN3W
-CSPEDR1W
-CSPUAN2W
-CTRLAU1W
-CZARAT1W
-EDEABA3D
-EDENBA1D
-EDESBA2D
-TANDIL3W
-EDESALDD
-EPECORXD
-APELPALD
-CALFAVQW
-CBARILRW
-EDERSARD
-EPENEUQD
-CGCRUZMW
-DECSASJW
-EDEMSAMD
-EDESTEMD
-ESANJUJD
-EDELAPID
-EDENOROD
-EDESURCD
-CEOSCOEW
-CGUALEEW
-ENERSAED
-EPESAFSD
-DPCORRWD
-EMISSAND
-REFSAFPD
-SECHEPHD
-EDELARFD
-EDESAEGD
-EDESASAD
-EDETUCTD
-EJUESAYD
-C16OCTUW
-CCOMODUW
-CGAIMAUW
-CMADRYUW
-CRAWSOUW
-CTRELEUW
-DGSPCHUD
-MUPITRZW
-SPSECRZD
-C3AR3A3W
-CARECO1W
-CBARKE3W
-CCASTE3W")
+            raise ValueError(f"age_nemo '{v}' no es un valor permitido")
         return v
     
-    @validator('mes')
+    @field_validator("mes")
+    @classmethod
     def validate_mes(cls, v):
-        if not isinstance(v, int) or v < 1 or v > 12:
-            raise ValueError('mes debe ser un entero entre 1 y 12')
+        if v not in range(1, 13):
+            raise ValueError(f"mes '{v}' no es un valor permitido")
         return v
-    
-    @validator('tipo_dia')
-    def validate_tipo_dia(cls, v):
-        if not isinstance(v, int) or v < 1 or v > 3:
-            raise ValueError('tipo_dia debe ser un entero entre 1 y 3')
-        return v
-    
-    @validator('tmed')
-    def validate_tmed(cls, v):
-        if not isinstance(v, (int, float)):
-            raise ValueError('tmed debe ser un número')
-        if v < -50.0 or v > 60.0:
-            raise ValueError('tmed debe estar entre -50.0 y 60.0 grados Celsius')
-        return float(v)
 
 @app.post("/predict/")
 async def predict(data: InputData):
