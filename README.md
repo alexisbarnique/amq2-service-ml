@@ -31,6 +31,12 @@ Si estás usando un servidor externo a tu computadora de trabajo, reemplaza `loc
 
 Todos los puertos u otras configuraciones se pueden modificar en el archivo `.env`. Se invita a jugar y romper para aprender; siempre puedes volver a clonar este repositorio.
 
+## Registro inicial del modelo
+
+Para poder usar el modelo, es necesario hacer un registro inicial en MLFlow. Para esto, se debe ejecutar en su totalidad el notebook `modelo_base/experimento_modelo.ipynb`.
+
+En caso de no hacer esto, el servicio que realiza las predicciones utilizará un modelo de backup cargado en el bucket s3 cuando se compilan los contenedores.
+
 ## Uso de app
 
 Se desarrolló una app de streamlit para utilizar el servicio mediante una interfaz gráfica. Para acceder, ingresar a:
