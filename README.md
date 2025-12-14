@@ -8,40 +8,39 @@ Para el entrenamiento del modelo, se cuenta con datos de demanda diaria de todas
 
 Previo al entrenamiento, se toma la demanda media de cada distribuidora para cada mes de cada año y tipo de día, ya que el objetivo último de este modelo es realizar una estimación para obtener la demanda característica de cada tipo de día de los distintos meses del año, para todas las distribuidoras.
 
-## Instalación
+## Resumen
+- Objetivo: estimar la demanda eléctrica diaria por distribuidor en la República Argentina.
+- Entradas principales: temperatura media diaria, tipo de día (hábil / semi hábil / no hábil) y distribuidora.
+- Salida: demanda característica por tipo de día y mes para cada distribuidora.
 
-1.  Para poder levantar todos los servicios, primero instala [Docker](https://docs.docker.com/engine/install/) en tu computadora (o en el servidor que desees usar).
-2.  Clona este repositorio.
-3.  Crea las carpetas `airflow/config`, `airflow/dags`, `airflow/logs`, `airflow/plugins`, `airflow/logs`.
-4.  Si estás en Linux o MacOS, en el archivo `.env`, reemplaza `AIRFLOW_UID` por el de tu usuario o alguno que consideres oportuno (para encontrar el UID, usa el comando `id -u <username>`). De lo contrario, Airflow dejará sus carpetas internas como root y no podrás subir DAGs (en `airflow/dags`) o plugins, etc.
-5.  En la carpeta raíz de este repositorio, ejecuta:
+## Contenido del repo
+- airflow/: DAGs, configuración y logs de Airflow.
+- modelo_base/: notebooks y código para entrenar/experimentar el modelo base.
+- docker-compose.yaml, .env: despliegue local (Airflow, MLflow, MinIO, API, Streamlit).
+
+## Requisitos
+- Docker & Docker Compose (instrucciones oficiales).
+- Git.
+- macOS / Linux: se recomienda usar UID del usuario para evitar permisos en volúmenes de Airflow.
+
+## Preparación rápida (macOS / Linux)
+1. Clonar:
+   git clone <repo>
+   cd amq2-service-ml
+
+2. Crear carpetas esperadas por Airflow (si no existen):
+   mkdir -p airflow/{config,dags,logs,plugins}
+
+3. Ajustar UID en `.env` (macOS / Linux):
+   - Obtener UID: id -u $(whoami)
+   - Reemplazar `AIRFLOW_UID` en `.env` con ese valor.
+
+## Despliegue local
+- Levantar todos los servicios:
 
 ``` bash
-docker compose --profile all up
+  docker compose --profile all up
 ```
-
-6.  Una vez que todos los servicios estén funcionando (verifica con el comando `docker ps -a` que todos los servicios estén healthy o revisa en Docker Desktop), podrás acceder a los diferentes servicios mediante:
-    -   Apache Airflow: http://localhost:8080
-    -   MLflow: http://localhost:5001
-    -   MinIO: http://localhost:9001 (ventana de administración de Buckets)
-    -   API: http://localhost:8800/
-    -   Documentación de la API: http://localhost:8800/docs
-
-Si estás usando un servidor externo a tu computadora de trabajo, reemplaza `localhost` por su IP (puede ser una privada si tu servidor está en tu LAN o una IP pública si no; revisa firewalls u otras reglas que eviten las conexiones).
-
-Todos los puertos u otras configuraciones se pueden modificar en el archivo `.env`. Se invita a jugar y romper para aprender; siempre puedes volver a clonar este repositorio.
-
-## Registro inicial del modelo
-
-Para poder usar el modelo, es necesario hacer un registro inicial en MLFlow. Para esto, se debe ejecutar en su totalidad el notebook `modelo_base/experimento_modelo.ipynb`.
-
-En caso de no hacer esto, el servicio que realiza las predicciones utilizará un modelo de backup cargado en el bucket s3 cuando se compilan los contenedores.
-
-## Uso de app
-
-Se desarrolló una app de streamlit para utilizar el servicio mediante una interfaz gráfica. Para acceder, ingresar a:
-
--   http://localhost:8501/
 
 ## Apagar los servicios
 
@@ -58,3 +57,44 @@ docker compose down --rmi all --volumes
 ```
 
 Nota: Si haces esto, perderás todo en los buckets y bases de datos.
+
+## URLs por defecto (contenedores locales)
+- Airflow UI: http://localhost:8080
+- MLflow UI: http://localhost:5001
+- MinIO (UI): http://localhost:9001
+- API: http://localhost:8800/
+- API docs (Swagger): http://localhost:8800/docs
+- Streamlit app: http://localhost:8501/
+
+## Registro inicial del modelo (obligatorio para producción)
+- Ejecutar el notebook `modelo_base/experimento_modelo.ipynb` para registrar el modelo inicial en MLflow.
+- Si no se registra, la API usará un modelo de backup almacenado en un bucket S3 incluido en el repo.
+
+## Airflow — DAGs relevantes
+- airflow/dags/etl_process.py: ETL que prepara datos limpios y guarda splits en S3.
+- airflow/dags/retrain_and_promote.py: DAG de reentrenamiento automático que compara y promueve modelos en MLflow.
+
+## Variables de Airflow importantes (definidas en Airflow → Admin → Variables)
+- clean_data_path: ruta S3 al CSV limpio (ej. s3://data/clean/clean_data.csv)
+- mlflow_tracking_uri: URI del tracking server (ej. http://mlflow:5000)
+- model_name: nombre en el Model Registry (ej. demanda_distribuidores)
+- target_col: nombre de la columna objetivo (ej. dem_dia)
+- improvement_threshold: fracción mínima de mejora para promover (ej. 0.01)
+
+## Uso de app
+
+Se desarrolló una app de streamlit para utilizar el servicio mediante una interfaz gráfica. Para acceder, ingresar a:
+
+-   http://localhost:8501/
+
+## Recomendaciones para DAGs y reentrenamiento
+- Definir correctamente `clean_data_path` y `model_name` antes de ejecutar `retrain_and_promote_model`.
+- Revisar permisos y credenciales para acceso a S3/MinIO desde contenedores.
+- Habilitar logging y alertas (Slack / email) para procesos críticos.
+
+## Depuración rápida
+- Verificar que todos los contenedores estén healthy:
+  docker ps -a
+- Logs de Airflow (scheduler / webserver): revisar en la carpeta `airflow/logs` o desde la UI.
+- Si MLflow no conecta desde el DAG, revisar `mlflow_tracking_uri` y el puerto en `.env`.
+- MinIO: credenciales por defecto están en `.env` (examinar variables MINIO_ROOT_USER, MINIO_ROOT_PASSWORD).
