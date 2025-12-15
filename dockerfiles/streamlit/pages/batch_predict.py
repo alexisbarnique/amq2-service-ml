@@ -2,6 +2,7 @@ import os
 import streamlit as st
 import requests
 import mlflow
+import pandas as pd
 
 # Base URL del backend
 API_URL = os.getenv("API_URL", "http://fastapi:8800")
@@ -44,6 +45,7 @@ if st.button("Predecir en lote"):
     if response.status_code == 200:
         result = response.json()
         st.success(f"Predicción de demanda en GWh:")
-        st.dataframe(result)
+        st.dataframe(pd.DataFrame(result))
+
     else:
         st.error("Error al consultar la API")

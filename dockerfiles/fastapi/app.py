@@ -175,5 +175,6 @@ async def batch_predict():
 
     y_pred = pipeline.predict(X)
     logging.info(f"Predicción generada: {y_pred[:5]}")
+    X["demanda"] = y_pred
 
-    return {"prediction": float(y_pred[:5])}
+    return X.to_dict(orient="records")
