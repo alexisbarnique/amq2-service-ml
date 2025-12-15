@@ -154,13 +154,11 @@ async def predict(data: InputData):
 async def batch_predict():
     logging.info(f"Obteniendo datos de todos los meses, tipos de dia y distribuidoras con sus temperaturas promedio del mes")
 
-    dem_csv_url = os.environ['DEM_CSV_URL']
-    dem_df = wr.s3.read_csv(dem_csv_url)
+    dem_df = wr.s3.read_csv("s3://data/raw/demandas.csv")
 
     logging.info(f"Obteniendo promedios de temperaturas por mes por distribuidora")
 
-    temp_csv_url = os.environ['TEMP_CSV_URL']
-    temp_df = wr.s3.read_csv(temp_csv_url)
+    temp_df = wr.s3.read_csv("s3://data/raw/temperaturas.csv")
         
     dem_df_unique = dem_df.drop_duplicates(subset=['mes', 'tipo_dia', 'age_nemo'])
     dem_df_unique = dem_df_unique.drop(columns=['fecha', 'anio_cal', 'dem_dia'])
