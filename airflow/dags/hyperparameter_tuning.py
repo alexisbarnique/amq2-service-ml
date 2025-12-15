@@ -280,7 +280,7 @@ def hyperparameter_tuning():
             study = optuna.create_study(direction="minimize", study_name="demanda_distribuidores")
             study.sampler = optuna.samplers.TPESampler(seed=SEED)
             study.pruner = optuna.pruners.MedianPruner(n_warmup_steps=10)
-            study.optimize(objective, n_trials=20)
+            study.optimize(objective, n_trials=250)
 
             best_trial = study.best_trial
             mlflow.log_metric("best_value_mae_val", float(best_trial.value))

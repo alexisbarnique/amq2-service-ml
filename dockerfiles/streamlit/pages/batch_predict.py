@@ -47,7 +47,8 @@ if st.button("Predecir en lote"):
         st.success("Predicción de demanda en GWh:")
         batch_df = pd.DataFrame(result)
         batch_df['demanda'] = (batch_df['demanda']/1000).round(2)
-        st.dataframe(batch_df)
+        batch_df['tmed'] = batch_df['tmed'].round(1)
+        st.dataframe(batch_df.sort_values(by=['mes', 'age_nemo', 'tipo_dia'])[['mes', 'age_nemo', 'tipo_dia', 'tmed', 'demanda']])
 
     else:
         st.error("Error al consultar la API")
