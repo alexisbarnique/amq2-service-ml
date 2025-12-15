@@ -68,13 +68,14 @@ Si estás usando un servidor externo a tu computadora de trabajo, reemplaza `loc
 Todos los puertos u otras configuraciones se pueden modificar en el archivo `.env`. Se invita a jugar y romper para aprender; siempre puedes volver a clonar este repositorio.
 
 ## Servicios y Puertos
-Servicio	URL	Descripción
-Streamlit	http://localhost:8501	Interfaz principal
-FastAPI	http://localhost:8800/docs	API REST + Swagger UI
-Airflow	http://localhost:8080	Orquestador de pipelines
-MLflow	http://localhost:5001	Tracking de experimentos
-MinIO	http://localhost:9001	Consola de almacenamiento
 
+| Servicio  | URL                        | Descripción                 |
+|-----------|----------------------------|-----------------------------|
+| Streamlit | http://localhost:8501      | Interfaz principal          |
+| FastAPI   | http://localhost:8800/docs | API REST + Swagger UI       |
+| Airflow   | http://localhost:8080      | Orquestador de pipelines    |
+| MLflow    | http://localhost:5001      | Tracking de experimentos    |
+| MinIO     | http://localhost:9001      | Consola de almacenamiento   |
 ## Flujo de Datos
 Entrenamiento:
 Airflow DAG → Yahoo Finance → Preprocesamiento → Entrenamiento LSTM → Registro en MLflow
