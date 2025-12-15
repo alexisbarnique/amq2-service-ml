@@ -12,11 +12,11 @@ Previo al entrenamiento, se toma la demanda media de cada distribuidora para cad
 Proyecto desarrollado en el marco de CEIA – Aprendizaje de Máquina I. Repositorio oficial: alexisbarnique/amq2-service-ml
 
 Integrantes: 
-Alexis Barnique
-Barbara Cerezo
-Brian Salamone
-Maria Gabriela	Bohorquez Hernandez
-Daniel Gerardo	Paniagua
+* Alexis Barnique
+* Barbara Cerezo
+* Brian Salamone
+* Maria Gabriela	Bohorquez Hernandez
+* Daniel Gerardo	Paniagua
 
 ## Características Principales
 Pipeline de ML Automatizado: DAGs en Apache Airflow para extracción, preprocesamiento y entrenamiento.
@@ -112,18 +112,18 @@ docker compose down --rmi all --volumes
 Nota: Si haces esto, perderás todo en los buckets y bases de datos.
 
 ## Comando Útiles
-* Ver logs en tiempo real
+* Ver logs en tiempo real:
 docker-compose logs -f
 
-* Ejecutar comandos dentro de contenedores
+* Ejecutar comandos dentro de contenedores:
 docker-compose exec api bash
 docker-compose exec airflow-webserver bash
 
-* Verificar estado de servicios
+* Verificar estado de servicios:
 docker-compose ps
 
-* Reiniciar un servicio específico
+* Reiniciar un servicio específico:
 docker-compose restart streamlit
 
-* Limpiar volúmenes (¡CUIDADO: Borra datos!)
+* Limpiar volúmenes (¡CUIDADO: Borra datos!):
 docker-compose down -v
