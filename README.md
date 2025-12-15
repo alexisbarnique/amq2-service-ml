@@ -8,6 +8,40 @@ Para el entrenamiento del modelo, se cuenta con datos de demanda diaria de todas
 
 Previo al entrenamiento, se toma la demanda media de cada distribuidora para cada mes de cada año y tipo de día, ya que el objetivo último de este modelo es realizar una estimación para obtener la demanda característica de cada tipo de día de los distintos meses del año, para todas las distribuidoras.
 
+## Profesores / Mentores
+Proyecto desarrollado en el marco de CEIA – Aprendizaje de Máquina I. Repositorio oficial: alexisbarnique/amq2-service-ml
+
+Integrantes: 
+Alexis Barnique
+Barbara Cerezo
+Brian Salamone
+Maria Gabriela	Bohorquez Hernandez
+Daniel Gerardo	Paniagua
+
+## Características Principales
+Pipeline de ML Automatizado: DAGs en Apache Airflow para extracción, preprocesamiento y entrenamiento.
+Gestión de Experimentos: MLflow para tracking de métricas, parámetros y versionado de modelos.
+Almacenamiento Distribuido: MinIO (S3-compatible) para artefactos y modelos.
+API REST: FastAPI para predicciones.
+Frontend Interactivo: Streamlit para visualización y gestión del modelo.
+Arquitectura Basada en Microservicios: Despliegue con Docker Compose.
+
+## Tecnologías Utilizadas
+Orquestación: Apache Airflow
+ML Frameworks: TensorFlow 
+Experiment Tracking: MLflow
+API Framework: FastAPI 
+Frontend: Streamlit
+Bases de Datos: PostgreSQL
+Cache: Redis
+Almacenamiento: MinIO
+Containerización: Docker Compose
+
+## Requisitos Previos
+Docker
+Docker Compose
+8GB RAM mínimo recomendado
+
 ## Instalación
 
 1. Para poder levantar todos los servicios, primero instala [Docker](https://docs.docker.com/engine/install/) en tu computadora (o en el servidor que desees usar).
@@ -32,6 +66,21 @@ docker compose --profile all up
 Si estás usando un servidor externo a tu computadora de trabajo, reemplaza `localhost` por su IP (puede ser una privada si tu servidor está en tu LAN o una IP pública si no; revisa firewalls u otras reglas que eviten las conexiones).
 
 Todos los puertos u otras configuraciones se pueden modificar en el archivo `.env`. Se invita a jugar y romper para aprender; siempre puedes volver a clonar este repositorio.
+
+## Servicios y Puertos
+Servicio	URL	Descripción
+Streamlit	http://localhost:8501	Interfaz principal
+FastAPI	http://localhost:8800/docs	API REST + Swagger UI
+Airflow	http://localhost:8080	Orquestador de pipelines
+MLflow	http://localhost:5001	Tracking de experimentos
+MinIO	http://localhost:9001	Consola de almacenamiento
+
+## Flujo de Datos
+Entrenamiento:
+Airflow DAG → Yahoo Finance → Preprocesamiento → Entrenamiento LSTM → Registro en MLflow
+
+Predicción:
+Streamlit → FastAPI → MLflow Model → Resultado de predicción
 
 ## Registro inicial del modelo
 
