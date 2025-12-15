@@ -110,3 +110,20 @@ docker compose down --rmi all --volumes
 ```
 
 Nota: Si haces esto, perderás todo en los buckets y bases de datos.
+
+## Comando Útiles
+* Ver logs en tiempo real
+docker-compose logs -f
+
+* Ejecutar comandos dentro de contenedores
+docker-compose exec api bash
+docker-compose exec airflow-webserver bash
+
+* Verificar estado de servicios
+docker-compose ps
+
+* Reiniciar un servicio específico
+docker-compose restart streamlit
+
+* Limpiar volúmenes (¡CUIDADO: Borra datos!)
+docker-compose down -v
