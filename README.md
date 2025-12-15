@@ -93,6 +93,10 @@ Para poder usar el modelo, es necesario hacer un registro inicial en MLFlow. Par
 
 En caso de no hacer esto, el servicio que realiza las predicciones utilizará un modelo de backup cargado en el bucket s3 cuando se compilan los contenedores.
 
+## Habilitación de DAGs de Airflow
+
+Para poder ejecutar las DAGs de Airflow desde la aplicación web de Streamlit, es necesario habilitarlas desde la interfaz web de Airflow.
+
 ## Uso de app
 
 Se desarrolló una app de streamlit para utilizar el servicio mediante una interfaz gráfica. Para acceder, ingresar a:

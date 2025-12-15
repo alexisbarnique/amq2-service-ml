@@ -44,8 +44,10 @@ if st.button("Predecir en lote"):
     )
     if response.status_code == 200:
         result = response.json()
-        st.success(f"Predicción de demanda en GWh:")
-        st.dataframe(pd.DataFrame(result))
+        st.success("Predicción de demanda en GWh:")
+        batch_df = pd.DataFrame(result)
+        batch_df['demanda'] = (batch_df['demanda']/1000).round(2)
+        st.dataframe(batch_df)
 
     else:
         st.error("Error al consultar la API")

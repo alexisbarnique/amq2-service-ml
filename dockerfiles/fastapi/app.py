@@ -66,6 +66,7 @@ try:
     model_data_mlflow = client_mlflow.get_model_version_by_alias(name="demanda_distribuidores", alias="champion")
     #-- Carga del modelo propiamente dicho, en este caso es el pipeline que incluye el preprocesador y el modelo
     pipeline = mlflow.sklearn.load_model(model_data_mlflow.source)
+    print("[load] Modelo cargado desde MLFlow.")
 except:
     # Si no puede desde MLFlow, intenta hacerlo desde el backup en el bucket s3
     os.environ.setdefault("MLFLOW_S3_ENDPOINT_URL", "http://127.0.0.1:9000")
@@ -75,23 +76,11 @@ except:
     backup_uri = "s3://mlflow/backups/demanda_distribuidores/best_model"
     print(f"[load] Intentando cargar desde backup {backup_uri} ...")
     pipeline = mlflow.sklearn.load_model(backup_uri)
+    print("[load] ATENCIÓN: se cargó el modelo de backup. Para usar el modelo desde MLFlow realice un entrenamiento con búsqueda de hiperparámetros")
 
 # Lista de valores permitidos
-AGE_NEMO_CODES = {
-    "C3AR3A3W", "CARECO1W", "CBARKE3W", "CCASTE3W", "CCHACA1W", "CCOLON1W",
-    "CDORRE2W", "CEVIGE3W", "CLEZAM3W", "CLFLOR3W", "CLUJAN1W", "CMONTE1W",
-    "CMOREN1W", "CNECNE3W", "COAZUL3W", "COLAVA3W", "SPSECRZD", "MUPITRZW",
-    "DGSPCHUD", "CTRELEUW", "CPERGA1W", "CPIGUE2W", "CPRING2W", "CPUNTA2W",
-    "CRAMAL1W", "CRANCH3W", "CRIVAD1W", "CROJAS1W", "CSALAD1W", "CSALTO1W",
-    "CSBERN3W", "CSPEDR1W", "CSPUAN2W", "CTRLAU1W", "CZARAT1W", "EDEABA3D",
-    "EDENBA1D", "EDESBA2D", "TANDIL3W", "EDESALDD", "EPECORXD", "APELPALD",
-    "CALFAVQW", "CBARILRW", "EDERSARD", "EPENEUQD", "CGCRUZMW", "DECSASJW",
-    "EDEMSAMD", "EDESTEMD", "ESANJUJD", "EDELAPID", "EDENOROD", "EDESURCD",
-    "CEOSCOEW", "CGUALEEW", "ENERSAED", "EPESAFSD", "DPCORRWD", "EMISSAND",
-    "REFSAFPD", "SECHEPHD", "EDELARFD", "EDESAEGD", "EDESASAD", "EDETUCTD",
-    "EJUESAYD", "C16OCTUW", "CCOMODUW", "CGAIMAUW", "CMADRYUW", "CRAWSOUW",
-    "CTRELEUW", "DGSPCHUD", "MUPITRZW", "SPSECRZD"
-}
+age_map = pipeline.named_steps['pre'].mapping_.reset_index()
+AGE_NEMO_CODES = sorted(age_map['dist_tipodia'].str[:-2].unique(), key=str.casefold)
 
 class InputData(BaseModel):
     model_config = ConfigDict(
