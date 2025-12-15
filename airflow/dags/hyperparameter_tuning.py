@@ -198,7 +198,6 @@ def hyperparameter_tuning():
         X = clean_df[cat_cols + num_cols]
         y = clean_df[target].iloc[:, 0]
         
-        # Stratify only by month (12 values) to avoid too many unique combinations
         stratify_col = clean_df["mes"]
 
         X_train_raw, X_test_raw, y_train, y_test = train_test_split(
@@ -364,12 +363,13 @@ def hyperparameter_tuning():
 
         return {"model_version": result.version, "mae_test": mae_test, "mape_test": mape_test}
 
-    # Orchestration
     dem_csv_url = get_variable("dem_csv_url")
     temp_csv_url = get_variable("temp_csv_url")
     dem_path = get_variable("dem_path")
     temp_path = get_variable("temp_path")
     clean_data_path = get_variable("clean_data_path")
+
+    # Llamamos a las tareas
 
     raw_data_result = get_raw_data(dem_csv_url, temp_csv_url, dem_path, temp_path)
     wrangling_result = data_wrangling(raw_data_result, clean_data_path)
