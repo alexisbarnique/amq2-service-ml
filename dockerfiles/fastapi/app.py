@@ -129,6 +129,7 @@ class InputData(BaseModel):
 
 @app.post("/predict/")
 async def predict(data: InputData):
+    """Devuelve una predicción en base a los datos ingresador por el usuario utilizando el mejor modelo disponible"""
     logging.info(f"Datos recibidos: mes={data.mes} age_nemo='{data.age_nemo}' tipo_dia={data.tipo_dia} tmed={data.tmed}")
 
     # Crear DataFrame con el orden correcto de columnas
@@ -152,6 +153,7 @@ async def predict(data: InputData):
 
 @app.post("/batch_predict/")
 async def batch_predict():
+    """Devuelve la predicción en lote utilizando el mejor modelo disponible."""
     logging.info(f"Obteniendo datos de todos los meses, tipos de dia y distribuidoras con sus temperaturas promedio del mes")
 
     dem_df = wr.s3.read_csv("s3://data/raw/demandas.csv")

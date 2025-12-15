@@ -65,7 +65,11 @@ docker compose --profile all up
 
 Si estás usando un servidor externo a tu computadora de trabajo, reemplaza `localhost` por su IP (puede ser una privada si tu servidor está en tu LAN o una IP pública si no; revisa firewalls u otras reglas que eviten las conexiones).
 
-Todos los puertos u otras configuraciones se pueden modificar en el archivo `.env`. Se invita a jugar y romper para aprender; siempre puedes volver a clonar este repositorio.
+Todos los puertos u otras configuraciones se pueden modificar en el archivo `.env`.
+
+## Diagrama del sistema
+
+![Sistema MLops.png](Sistema_MLops.png)
 
 ## Servicios y Puertos
 
